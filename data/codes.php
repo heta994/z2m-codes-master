@@ -180,42 +180,34 @@ void loop() {
   2 => 'Jumper Wires',
   3 => 'External Power (optional)',
 ),
-        'code' => '// Servo Motor Control Example
+        'code' => '/*
+  Project: Servo Motor Control
+  Description:
+    - Controls a servo motor connected to pin 9.
+    - Moves the servo from 0° to 180° and back continuously.
+*/
+
 #include <Servo.h>
 
-Servo myServo;  // Create servo object
-
-int servoPin = 9;
+Servo myservo;
+int ang;
 
 void setup() {
-  myServo.attach(servoPin);  // Attach servo to pin 9
-  Serial.begin(9600);
-  Serial.println(\"Servo Motor Control\");
+  myservo.attach(9);
 }
 
 void loop() {
-  // Sweep from 0 to 180 degrees
-  for (int angle = 0; angle <= 180; angle++) {
-    myServo.write(angle);
-    Serial.print(\"Angle: \");
-    Serial.println(angle);
+  for (ang = 0; ang <= 180; ang += 1) {
+    myservo.write(ang);
     delay(15);
   }
-  
-  delay(500);
-  
-  // Sweep back from 180 to 0 degrees
-  for (int angle = 180; angle >= 0; angle--) {
-    myServo.write(angle);
-    Serial.print(\"Angle: \");
-    Serial.println(angle);
+  for (ang = 180; ang >= 0; ang -= 1) {
+    myservo.write(ang);
     delay(15);
   }
-  
-  delay(500);
 }',
-        'author' => 'Z2M Codes',
-        'date' => '2024-02-15',
+        'author' => 'Zero2Maker',
+        'date' => '2025-10-15',
         'image' => 'assets/images/servo motor.png',
     ],
     [
@@ -973,7 +965,7 @@ void loop() {
     [
         'id' => 21,
         'title' => 'Heart Pulse Rate Sensor',
-        'description' => 'Reads pulse signal from Pulse Sensor connected to A0 and prints values to Serial Monitor.',
+        'description' => 'Reads pulse signal from Pulse Sensor connected to A0. Lights up onboard LED when a beat is detected. Reference: pulsesensor.com',
         'category' => 'sensors',
         'difficulty' => 'beginner',
         'tags' => array (
@@ -989,18 +981,33 @@ void loop() {
   2 => 'Breadboard',
   3 => 'Jumper Wires',
 ),
-        'code' => '// Pulse Sensor with Arduino
-int pulsePin = A0;      // Signal pin connected to A0
-int pulseValue = 0;
+        'code' => '/*
+  Project: Heart Pulse Rate Sensor
+  Reference: https://pulsesensor.com/pages/code-and-guide
+  Description:
+    - Reads pulse signal from Pulse Sensor connected to A0.
+    - Lights up onboard LED (Pin 13) when a beat is detected.
+*/
+
+int PulseSensorPurplePin = 0;
+int LED13 = 13;
+int Signal;
+int Threshold = 510;
 
 void setup() {
-  Serial.begin(9600);   // Start serial communication
+  pinMode(LED13, OUTPUT);
+  Serial.begin(9600);
 }
 
 void loop() {
-  pulseValue = analogRead(pulsePin);   // Read signal from sensor
-  Serial.println(pulseValue);          // Print value to Serial Monitor
-  delay(10);                           // Small delay for stability
+  Signal = analogRead(PulseSensorPurplePin);
+  Serial.println(Signal);
+  if (Signal > Threshold) {
+    digitalWrite(LED13, HIGH);
+  } else {
+    digitalWrite(LED13, LOW);
+  }
+  delay(10);
 }
 ',
         'author' => 'Zero2Maker',
@@ -3169,6 +3176,6 @@ void loop() {
         'author' => 'Z2M Codes',
         'date' => '2025-03-07',
         'image' => '',
-    ],
+    ]
 ];
 ?>

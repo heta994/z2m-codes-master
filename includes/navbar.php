@@ -1,3 +1,6 @@
+<?php
+// User auth removed - no session required for public pages
+?>
 <!-- Navigation Bar -->
 <nav class="bg-white shadow-lg sticky top-0 z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -11,15 +14,12 @@
             
             <!-- Desktop Navigation - Home, Projects -->
             <div class="hidden md:flex items-center space-x-6" style="display: flex !important; flex-direction: row !important; align-items: center !important;">
-                <!-- 1. Home - MUST BE FIRST -->
                 <a href="<?php echo getHomeUrl(); ?>" 
                    id="nav-home"
                    style="order: 1 !important; display: inline-block !important;"
-                   class="text-gray-700 hover:text-purple-600 font-medium transition duration-200 <?php echo (basename($_SERVER['PHP_SELF']) == 'index.php') ? 'text-purple-600' : ''; ?>">
+                   class="text-gray-700 hover:text-purple-600 font-medium transition duration-200">
                     Home
                 </a>
-                
-                <!-- 2. Projects -->
                 <a href="<?php echo getCodesUrl(); ?>" 
                    id="nav-all-codes"
                    style="order: 2 !important; display: inline-block !important;"
@@ -45,16 +45,8 @@
     <!-- Mobile Menu -->
     <div id="mobile-menu" class="hidden md:hidden bg-white border-t border-gray-200">
         <div class="px-4 py-4 space-y-1">
-            <!-- Home -->
-            <a href="<?php echo getHomeUrl(); ?>" 
-               class="block px-3 py-2 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg font-medium transition">
-                Home
-            </a>
-            <!-- Projects -->
-            <a href="<?php echo getCodesUrl(); ?>" 
-               class="block px-3 py-2 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg font-medium transition border-t border-gray-100 mt-2 pt-2">
-                Projects
-            </a>
+            <a href="<?php echo getHomeUrl(); ?>" class="block px-3 py-2 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg font-medium transition">Home</a>
+            <a href="<?php echo getCodesUrl(); ?>" class="block px-3 py-2 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg font-medium transition">Projects</a>
         </div>
     </div>
 </nav>

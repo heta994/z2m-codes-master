@@ -1,0 +1,3 @@
+-- Run this in phpMyAdmin to add admin user
+-- First run create-admin.php to get the hash, then use it here
+-- Or use config credentials: admin@z2m.com / Admin123 (no DB needed)

@@ -34,7 +34,8 @@ if (!$code) {
 }
 
 $page_title = $code['title'];
-$difficulty_color = $difficulty_levels[$code['difficulty']]['color'];
+$difficulty_color = $difficulty_levels[$code['difficulty'] ?? 'beginner']['color'];
+$codeCategory = $code['category'] ?? 'projects';
 ?>
 
 <?php include 'includes/header.php'; ?>
@@ -53,8 +54,8 @@ $difficulty_color = $difficulty_levels[$code['difficulty']]['color'];
                     </svg>
                 </li>
                 <li>
-                    <a href="<?php echo getCategoryUrl($code['category']); ?>" class="text-gray-500 hover:text-purple-600">
-                        <?php echo $categories[$code['category']]['name']; ?>
+                    <a href="<?php echo getCategoryUrl($codeCategory); ?>" class="text-gray-500 hover:text-purple-600">
+                        <?php echo isset($categories[$codeCategory]) ? $categories[$codeCategory]['name'] : 'Projects'; ?>
                     </a>
                 </li>
                 <li>
@@ -82,7 +83,7 @@ $difficulty_color = $difficulty_levels[$code['difficulty']]['color'];
                         <?php echo $difficulty_levels[$code['difficulty']]['name']; ?>
                     </span>
                     <span class="text-sm text-gray-500">
-                        Updated: <?php echo date('M d, Y', strtotime($code['date'])); ?>
+                        Updated: <?php echo date('M d, Y', strtotime($code['date'] ?? 'now')); ?>
                     </span>
                 </div>
                 
@@ -106,7 +107,7 @@ $difficulty_color = $difficulty_levels[$code['difficulty']]['color'];
                 
                 <!-- Tags -->
                 <div class="flex flex-wrap gap-2">
-                    <?php foreach ($code['tags'] as $tag): ?>
+                    <?php foreach ($code['tags'] ?? [] as $tag): ?>
                         <span class="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded-full">
                             #<?php echo $tag; ?>
                         </span>
@@ -117,15 +118,18 @@ $difficulty_color = $difficulty_levels[$code['difficulty']]['color'];
             <!-- Circuit Diagram Image -->
             <?php 
             $imagePath = getCodeImagePath($code);
+            $isPlaceholder = ($imagePath === PLACEHOLDER_IMAGE);
+            $imgSrc = $isPlaceholder ? (BASE_URL . '/assets/images/placeholder.php?title=' . urlencode($code['title'])) : (BASE_URL . '/' . $imagePath);
             if (!empty($imagePath)): 
             ?>
             <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
                 <div class="bg-gray-800 px-6 py-4">
                     <span class="text-white font-semibold">Circuit Diagram</span>
+                    <?php if ($isPlaceholder): ?><span class="text-gray-400 text-sm ml-2">(placeholder)</span><?php endif; ?>
                 </div>
                 <div class="p-4 flex justify-center bg-gray-50">
-                    <img src="<?php echo BASE_URL . '/' . $imagePath; ?>" 
-                         alt="<?php echo $code['title']; ?> Circuit Diagram" 
+                    <img src="<?php echo $imgSrc; ?>" 
+                         alt="<?php echo htmlspecialchars($code['title']); ?> Circuit Diagram" 
                          class="max-w-full h-auto rounded-lg shadow-sm border border-gray-200">
                 </div>
             </div>
@@ -176,7 +180,7 @@ $difficulty_color = $difficulty_levels[$code['difficulty']]['color'];
                     Components Required
                 </h3>
                 <ul class="space-y-2">
-                    <?php foreach ($code['components'] as $component): ?>
+                    <?php foreach ($code['components'] ?? [] as $component): ?>
                         <li class="flex items-start">
                             <svg class="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
@@ -195,7 +199,7 @@ $difficulty_color = $difficulty_levels[$code['difficulty']]['color'];
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
                         </svg>
                         <span class="font-medium">Category:</span>
-                        <span class="ml-2"><?php echo $categories[$code['category']]['name']; ?></span>
+                        <span class="ml-2"><?php echo isset($categories[$codeCategory]) ? $categories[$codeCategory]['name'] : 'Projects'; ?></span>
                     </div>
                     
                 </div>
@@ -204,15 +208,28 @@ $difficulty_color = $difficulty_levels[$code['difficulty']]['color'];
                 
                 <!-- Actions -->
                 <div class="space-y-3">
-                    <a href="<?php echo getCategoryUrl($code['category']); ?>" 
+                    <a href="<?php echo getCategoryUrl($codeCategory); ?>" 
                        class="block text-center bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg font-semibold transition">
                         More from this Category
                     </a>
-                    <?php $nextCode = getNextCode($code['id']); if ($nextCode): ?>
+                    <?php 
+                    $prevCode = getPrevCode($code['id'], $codeCategory);
+                    $nextCode = getNextCode($code['id'], $codeCategory);
+                    if ($prevCode || $nextCode): ?>
+                    <div class="flex gap-3">
+                    <?php if ($prevCode): ?>
+                    <a href="<?php echo getCodeUrl($prevCode); ?>" 
+                       class="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-3 rounded-lg font-semibold transition">
+                        ← Previous Project
+                    </a>
+                    <?php endif; ?>
+                    <?php if ($nextCode): ?>
                     <a href="<?php echo getCodeUrl($nextCode); ?>" 
-                       class="block text-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-3 rounded-lg font-semibold transition">
+                       class="flex-1 text-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-3 rounded-lg font-semibold transition">
                         Next Project →
                     </a>
+                    <?php endif; ?>
+                    </div>
                     <?php endif; ?>
                 </div>
             </div>

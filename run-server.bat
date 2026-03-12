@@ -1,10 +1,7 @@
 @echo off
+echo Starting Z2M Codes server...
+echo Open http://localhost:8000 in your browser
+echo.
 cd /d "%~dp0"
-title Z2M Codes - Local Server
-echo Starting Z2M Codes at http://localhost:8080
-echo.
-echo Open in browser: http://localhost:8080
-echo Press Ctrl+C to stop the server.
-echo.
-c:\xampp\php\php.exe -S localhost:8080 router.php
+c:\xampp\php\php.exe -S localhost:8000 router.php
 pause

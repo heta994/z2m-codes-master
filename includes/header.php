@@ -181,6 +181,6 @@
     </style>
 </head>
 <body class="bg-gray-50">
-    <?php include 'includes/navbar.php'; ?>
+    <?php include __DIR__ . '/navbar.php'; ?>
 
 

@@ -18,22 +18,25 @@
                     <ul class="space-y-2">
                         <li><a href="<?php echo getHomeUrl(); ?>" class="text-gray-600 hover:text-purple-600 transition">Home</a></li>
                         <li><a href="<?php echo getCodesUrl(); ?>" class="text-gray-600 hover:text-purple-600 transition">Projects</a></li>
-                        <li><a href="<?php echo getCategoryUrl('arduino-basics'); ?>" class="text-gray-600 hover:text-purple-600 transition">Arduino Basics</a></li>
-                        <li><a href="<?php echo getCategoryUrl('iot'); ?>" class="text-gray-600 hover:text-purple-600 transition">IoT Projects</a></li>
+                        <li><a href="<?php echo BASE_URL; ?>/submit" class="text-gray-600 hover:text-purple-600 transition">Submit Project</a></li>
                     </ul>
                 </div>
                 
                 <div>
                     <h4 class="text-lg font-semibold mb-4 text-gray-900">Categories</h4>
                     <ul class="space-y-2">
-                        <li><a href="<?php echo getCategoryUrl('sensors'); ?>" class="text-gray-600 hover:text-purple-600 transition">Sensors</a></li>
-                        <li><a href="<?php echo getCategoryUrl('motors'); ?>" class="text-gray-600 hover:text-purple-600 transition">Motors</a></li>
-                        <li><a href="<?php echo getCategoryUrl('leds'); ?>" class="text-gray-600 hover:text-purple-600 transition">LEDs & Display</a></li>
-                        <li><a href="<?php echo getCategoryUrl('communication'); ?>" class="text-gray-600 hover:text-purple-600 transition">Communication</a></li>
+                        <?php foreach ($categories as $cat_key => $category): ?>
+                        <?php if ($cat_key === 'projects') continue; ?>
+                        <li><a href="<?php echo getCategoryUrl($cat_key); ?>" class="text-gray-600 hover:text-purple-600 transition"><?php echo $category['name']; ?></a></li>
+                        <?php endforeach; ?>
                     </ul>
                 </div>
             </div>
-            
+            <div class="mt-8 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm">
+                <a href="<?php echo BASE_URL; ?>/admin/" class="hover:text-purple-600">Admin</a>
+                <span class="mx-2">·</span>
+                <span>© <?php echo date('Y'); ?> <?php echo SITE_NAME; ?></span>
+            </div>
         </div>
     </footer>
     

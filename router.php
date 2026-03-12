@@ -18,9 +18,57 @@ if ($scriptDir !== '/' && $scriptDir !== '\\' && $scriptDir !== '.' && !empty($s
 // Remove leading slash
 $requestPath = ltrim($requestPath, '/');
 
-// If root or empty, serve index.php
+// If root or empty - show home page (site)
 if (empty($requestPath) || $requestPath === '/') {
     require __DIR__ . '/index.php';
+    return true;
+}
+
+// User auth routes
+if ($requestPath === 'login' || $requestPath === 'login.php') {
+    require __DIR__ . '/auth/login.php';
+    return true;
+}
+if ($requestPath === 'signup' || $requestPath === 'signup.php') {
+    require __DIR__ . '/auth/signup.php';
+    return true;
+}
+if ($requestPath === 'dashboard' || $requestPath === 'dashboard.php') {
+    require __DIR__ . '/auth/dashboard.php';
+    return true;
+}
+if ($requestPath === 'logout' || $requestPath === 'logout.php') {
+    require __DIR__ . '/auth/logout.php';
+    return true;
+}
+
+// Admin panel routes
+if ($requestPath === 'admin' || $requestPath === 'admin/' || strpos($requestPath, 'admin') === 0) {
+    $adminFile = preg_replace('#^admin/?#', '', $requestPath) ?: 'index.php';
+    if (substr($adminFile, -4) !== '.php') {
+        $adminFile = $adminFile === '' ? 'index.php' : $adminFile . '.php';
+    }
+    $adminPath = __DIR__ . '/admin/' . $adminFile;
+    if (file_exists($adminPath)) {
+        require $adminPath;
+        return true;
+    }
+    require __DIR__ . '/admin/index.php';
+    return true;
+}
+
+// Submit (contributor submission) - form and success page
+if ($requestPath === 'submit' || $requestPath === 'submit/' || strpos($requestPath, 'submit') === 0) {
+    $submitFile = preg_replace('#^submit/?#', '', $requestPath) ?: 'index.php';
+    if (substr($submitFile, -4) !== '.php') {
+        $submitFile = $submitFile === '' ? 'index.php' : $submitFile . '.php';
+    }
+    $submitPath = __DIR__ . '/submit/' . $submitFile;
+    if (file_exists($submitPath)) {
+        require $submitPath;
+        return true;
+    }
+    require __DIR__ . '/submit/index.php';
     return true;
 }
 
@@ -68,8 +116,11 @@ if ($requestPath === 'codes/home' || $requestPath === 'home') {
     return true;
 }
 
-// /codes
-if ($requestPath === 'codes' || $requestPath === 'all-codes') {
+// /codes, /projects, or /codes.php (Projects listing - all projects visible)
+if ($requestPath === 'codes' || $requestPath === 'projects' || $requestPath === 'all-codes' || $requestPath === 'codes.php') {
+    if (empty($_GET['category'])) {
+        $_GET['category'] = 'projects';
+    }
     require __DIR__ . '/codes.php';
     return true;
 }

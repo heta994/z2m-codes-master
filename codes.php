@@ -29,8 +29,8 @@ if (strpos($request_uri, 'codes.php') !== false && !empty($query_string)) {
     }
 }
 
-// Filter codes
-$filter_category = ($selected_category === 'projects') ? null : $selected_category;
+// Filter codes (projects = show all)
+$filter_category = ($selected_category === 'projects' || empty($selected_category)) ? null : $selected_category;
 $filtered_codes = filterCodes($filter_category, $selected_difficulty, $search_query);
 
 // Page title
@@ -161,7 +161,7 @@ if ($selected_category && isset($categories[$selected_category])) {
     <?php if (count($filtered_codes) > 0): ?>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <?php foreach ($filtered_codes as $code): 
-                $difficulty_color = $difficulty_levels[$code['difficulty']]['color'];
+                $difficulty_color = $difficulty_levels[$code['difficulty'] ?? 'beginner']['color'];
             ?>
                 <div class="code-card bg-white rounded-xl shadow-md hover:shadow-xl transition overflow-hidden">
                     <div class="p-6">
@@ -169,7 +169,7 @@ if ($selected_category && isset($categories[$selected_category])) {
                         <div class="flex items-start justify-between mb-3">
                             <div class="flex items-center gap-2">
                                 <span class="badge badge-<?php echo $difficulty_color; ?>">
-                                    <?php echo $difficulty_levels[$code['difficulty']]['name']; ?>
+                                    <?php echo $difficulty_levels[$code['difficulty'] ?? 'beginner']['name']; ?>
                                 </span>
                                 <?php if (!empty(getCodeImagePath($code))): ?>
                                 <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full flex items-center" title="Includes circuit diagram">
@@ -181,7 +181,7 @@ if ($selected_category && isset($categories[$selected_category])) {
                                 <?php endif; ?>
                             </div>
                             <span class="text-2xl">
-                                <?php echo $categories[$code['category']]['icon']; ?>
+                                <?php $catKey = $code['category'] ?? ''; echo isset($categories[$catKey]) ? $categories[$catKey]['icon'] : '📄'; ?>
                             </span>
                         </div>
                         
@@ -201,12 +201,12 @@ if ($selected_category && isset($categories[$selected_category])) {
                         </div>
                         <?php endif; ?>
                         <p class="text-gray-600 mb-4 line-clamp-3">
-                            <?php echo $code['description']; ?>
+                            <?php echo htmlspecialchars($code['description'] ?? ''); ?>
                         </p>
                         
                         <!-- Tags -->
                         <div class="flex flex-wrap gap-2 mb-4">
-                            <?php foreach (array_slice($code['tags'], 0, 3) as $tag): ?>
+                            <?php foreach (array_slice($code['tags'] ?? [], 0, 3) as $tag): ?>
                                 <span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
                                     #<?php echo $tag; ?>
                                 </span>
@@ -216,7 +216,7 @@ if ($selected_category && isset($categories[$selected_category])) {
                         <!-- Footer -->
                         <div class="flex items-center justify-between pt-4 border-t border-gray-100">
                             <span class="text-sm text-gray-500">
-                                <?php echo date('M d, Y', strtotime($code['date'])); ?>
+                                <?php echo date('M d, Y', strtotime($code['date'] ?? 'now')); ?>
                             </span>
                             <a href="<?php echo getCodeUrl($code); ?>" 
                                class="inline-flex items-center text-purple-600 font-semibold hover:text-purple-700 transition">
@@ -230,14 +230,16 @@ if ($selected_category && isset($categories[$selected_category])) {
                 </div>
             <?php endforeach; ?>
         </div>
-    <?php else: ?>
+    <?php else: 
+        $total_available = count(getAllCodes());
+    ?>
         <!-- No Results -->
         <div class="text-center py-16">
             <svg class="w-24 h-24 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
             <h3 class="text-2xl font-bold text-gray-900 mb-2">No codes found</h3>
-            <p class="text-gray-600 mb-6">Try adjusting your filters or search query</p>
+            <p class="text-gray-600 mb-6"><?php echo $total_available > 0 ? 'No projects match your filters.' : 'No projects in database yet.'; ?> Try adjusting your filters or search query.</p>
             <a href="<?php echo getCodesUrl(); ?>" class="inline-block bg-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-purple-700 transition">
                 View All Codes
             </a>

@@ -95,14 +95,14 @@ $page_title = 'Home';
         $all_codes = getAllCodes();
         $featured_codes = array_slice($all_codes, 0, 6);
         foreach ($featured_codes as $code): 
-            $difficulty_color = $difficulty_levels[$code['difficulty']]['color'];
+            $difficulty_color = $difficulty_levels[$code['difficulty'] ?? 'beginner']['color'];
         ?>
             <div class="code-card bg-white rounded-xl shadow-md hover:shadow-xl transition overflow-hidden">
                 <div class="p-6">
                     <div class="flex items-start justify-between mb-3">
                         <div class="flex items-center gap-2">
                             <span class="badge badge-<?php echo $difficulty_color; ?>">
-                                <?php echo $difficulty_levels[$code['difficulty']]['name']; ?>
+                                <?php echo $difficulty_levels[$code['difficulty'] ?? 'beginner']['name']; ?>
                             </span>
                             <?php if (!empty(getCodeImagePath($code))): ?>
                             <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full flex items-center" title="Includes circuit diagram">
@@ -114,7 +114,7 @@ $page_title = 'Home';
                             <?php endif; ?>
                         </div>
                         <span class="text-2xl">
-                            <?php echo $categories[$code['category']]['icon']; ?>
+                            <?php $catKey = $code['category'] ?? ''; echo isset($categories[$catKey]) ? $categories[$catKey]['icon'] : '📄'; ?>
                         </span>
                     </div>
                     
@@ -133,7 +133,7 @@ $page_title = 'Home';
                     <p class="text-gray-600 mb-4 line-clamp-2"><?php echo $code['description']; ?></p>
                     
                     <div class="flex flex-wrap gap-2 mb-4">
-                        <?php foreach (array_slice($code['tags'], 0, 3) as $tag): ?>
+                        <?php foreach (array_slice($code['tags'] ?? [], 0, 3) as $tag): ?>
                             <span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
                                 #<?php echo $tag; ?>
                             </span>

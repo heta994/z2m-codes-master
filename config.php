@@ -5,7 +5,11 @@ define('SITE_DESCRIPTION', 'Your Arduino & Basic Programming Code Repository');
 // Auto-detect base URL for both local and online use
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'];
-$path = dirname($_SERVER['SCRIPT_NAME']);
+$path = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
+// When serving from /admin/*, /submit/*, or /projects/*, use site root to avoid duplicate paths in links
+if ($path === '/admin' || preg_match('#/admin$#', $path) || $path === '/submit' || preg_match('#/submit$#', $path) || preg_match('#/projects$#', $path)) {
+    $path = dirname($path);
+}
 // Normalize path for local and production
 if ($path === '/' || $path === '\\' || $path === '.' || empty($path)) {
     $path = '';
@@ -13,8 +17,12 @@ if ($path === '/' || $path === '\\' || $path === '.' || empty($path)) {
     // Remove leading/trailing slashes and add single leading slash
     $path = '/' . trim($path, '/\\');
 }
-// Build BASE_URL
-define('BASE_URL', rtrim($protocol . '://' . $host . $path, '/\\'));
+// Build BASE_URL - ensure it works for PHP built-in server and Apache
+$baseUrl = rtrim($protocol . '://' . $host . $path, '/\\');
+if (empty($baseUrl)) {
+    $baseUrl = $protocol . '://' . $host;
+}
+define('BASE_URL', $baseUrl);
 
 // Code Categories
 $categories = [
@@ -62,9 +70,462 @@ $difficulty_levels = [
     'advanced' => ['name' => 'Advanced', 'color' => 'red']
 ];
 
-// Function to get all codes from data file
+// Admin credentials (change these in production!)
+define('ADMIN_EMAIL', 'admin@z2m.com');
+define('ADMIN_PASSWORD', 'Admin123');
+
+// Z2M Part numbers for admin part selection dropdown
+$z2m_parts = [
+    '' => '-- Select Part (optional) --',
+    'EMA-00004-A' => 'LED Matrix (EMA-00004-A)',
+    'EDR-00002-20K0' => 'Potentiometer (EDR-00002-20K0)',
+    'EMS-00014-A' => 'Touch Detector (EMS-00014-A)',
+    'EMS-00007-A' => 'Digital Temperature (EMS-00007-A)',
+    'EMS-00017-A' => 'LDR (EMS-00017-A)',
+    'EMC-00005-A' => 'RFID (EMC-00005-A)',
+    'EMS-00005-A' => 'Ultrasonic/HC-SR04 (EMS-00005-A)',
+    'EDT-00007-A' => 'Flex Sensor (EDT-00007-A)',
+    'EMA-00001-A' => 'LCD I2C (EMA-00001-A)',
+    'EMS-00024-A' => 'Rain Sensor (EMS-00024-A)',
+    'EMS-017-A' => 'Water Flow Sensor (EMS-017-A)',
+    'EDT-00006-A' => 'Force Sensitive Resistor (EDT-00006-A)',
+    'EMA-00008-A' => 'Relay Module (EMA-00008-A)',
+    'EMS-00018-A' => 'Water Level Sensor (EMS-00018-A)',
+    'EMS-00010-A' => 'Gas Sensor (EMS-00010-A)',
+    'EMA-00007-A' => 'TM1637 4-Digit Display (EMA-00007-A)',
+    'EMC-00006-A' => 'GSM/GPRS Module (EMC-00006-A)',
+    'EMS-00008-A' => 'Metal Touch Sensor (EMS-00008-A)',
+    'EMC-00001-A' => 'RF Transmitter/Receiver (EMC-00001-A)',
+    'EMS-00003-B' => 'Accelerometer (EMS-00003-B)',
+    'EMS-00009-A' => 'Heart Pulse Sensor (EMS-00009-A)',
+    'EMA-00010-B' => 'Motor Driver (EMA-00010-B)',
+    'EDT-00001-A' => 'Smoke/Gas Sensor (EDT-00001-A)',
+    'EDS-00004-A' => 'Analog Temperature (EDS-00004-A)',
+    'EMS-00002-A' => 'DHT11 Humidity (EMS-00002-A)',
+    'EMA-00003-B' => 'NeoPixel (EMA-00003-B)',
+    'EMS-00019-A' => 'Soil Moisture (EMS-00019-A)',
+    'EMC-00008-A' => 'IR Remote (EMC-00008-A)',
+    'EMC-00003-A' => 'NodeMCU (EMC-00003-A)',
+    'EMS-00004-B' => 'Sound Detector (EMS-00004-B)',
+    'EMS-00013-A' => 'IR Sensor (EMS-00013-A)',
+    'EMA-00006-A' => 'Passive Buzzer (EMA-00006-A)',
+    'EMC-00004-A' => 'Bluetooth Module (EMC-00004-A)',
+    'EMS-00020-A' => 'Joystick (EMS-00020-A)',
+    'EMS-00022-A' => 'Piezoelectric Sensor (EMS-00022-A)',
+    'EMS-00004-A' => 'Sound Sensor (EMS-00004-A)',
+    'EMS-016-A' => 'Capacitive Keypad (EMS-016-A)',
+    'EDD-00001-A' => 'Laser Diode (EDD-00001-A)',
+    'EMS-00006-A' => 'PIR Sensor (EMS-00006-A)',
+    'EMS-00021-A' => 'Tilt Sensor (EMS-00021-A)',
+    'EDM-00009-A' => 'Momentary Switch (EDM-00009-A)',
+    'MMD-00002-A' => 'Servo Motor (MMD-00002-A)',
+    'EDD-00004-A' => '7-Segment Display (EDD-00004-A)',
+    'EMS-00012-A' => 'Color Sensor (EMS-00012-A)',
+];
+
+// Common components for admin Select Components
+$component_options = [
+    'Arduino Uno',
+    'Arduino Nano',
+    'NodeMCU/ESP8266',
+    'ESP32',
+    'LED',
+    '220Ω Resistor',
+    '10kΩ Resistor',
+    '330Ω Resistor',
+    'Breadboard',
+    'Jumper Wires',
+    'USB Cable',
+    'Micro USB Cable',
+    'DHT11 Sensor',
+    'DHT22 Sensor',
+    'Ultrasonic Sensor (HC-SR04)',
+    'PIR Sensor',
+    'LDR Sensor',
+    'Servo Motor (SG90)',
+    'Stepper Motor',
+    'Motor Driver (L293D/L298N)',
+    'Relay Module',
+    'LCD I2C Display',
+    '7-Segment Display',
+    'NeoPixel LED Strip',
+    'Potentiometer',
+    'Push Button',
+    'Buzzer',
+    'RFID Module (MFRC522)',
+    'Bluetooth Module (HC-05)',
+    'GSM Module',
+    'GPS Module',
+    'SD Card Module',
+    'Real-Time Clock (RTC)',
+    'External Power Supply',
+];
+
+// Path to admin-added codes (JSON) - used when USE_MYSQL is false
+define('CODES_ADDED_FILE', __DIR__ . '/data/codes_added.json');
+
+// Path to pending submissions - used when USE_MYSQL is false
+define('SUBMISSIONS_FILE', __DIR__ . '/data/submissions_pending.json');
+
+// MySQL Database - set USE_MYSQL to true to use database (false = use JSON files)
+define('USE_MYSQL', true);
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'z2m_codes');
+define('DB_USER', 'root');
+define('DB_PASS', '');
+define('DB_CHARSET', 'utf8mb4');
+
+// Get PDO connection (lazy)
+function getDb() {
+    static $pdo = null;
+    if ($pdo === null && USE_MYSQL) {
+        try {
+            $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
+            $pdo = new PDO($dsn, DB_USER, DB_PASS, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+        } catch (PDOException $e) {
+            error_log('DB connection failed: ' . $e->getMessage());
+            return null;
+        }
+    }
+    return $pdo;
+}
+
+// Function to get pending submissions
+function getPendingSubmissions() {
+    $db = getDb();
+    if ($db) {
+        $stmt = $db->query("SELECT * FROM submissions_pending WHERE status = 'pending' ORDER BY id ASC");
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'id' => (int)$r['id'],
+                'title' => $r['title'],
+                'description' => $r['description'],
+                'category' => $r['category'],
+                'difficulty' => $r['difficulty'],
+                'tags' => json_decode($r['tags'] ?? '[]', true) ?: [],
+                'components' => json_decode($r['components'] ?? '[]', true) ?: [],
+                'z2m_part' => $r['z2m_part'],
+                'code' => $r['code'],
+                'image' => $r['image'],
+                'contributor_name' => $r['contributor_name'],
+                'contributor_email' => $r['contributor_email'],
+                'source' => $r['source'] ?? 'contributor',
+                'submitted_at' => $r['submitted_at'],
+            ];
+        }
+        return $out;
+    }
+    if (!file_exists(SUBMISSIONS_FILE)) return [];
+    $json = file_get_contents(SUBMISSIONS_FILE);
+    $data = json_decode($json, true);
+    return is_array($data) ? $data : [];
+}
+
+// Function to save pending submissions (file mode only)
+function saveSubmissions($submissions) {
+    if (getDb()) return true; // DB mode: no bulk save
+    $dir = dirname(SUBMISSIONS_FILE);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    $result = file_put_contents(SUBMISSIONS_FILE, json_encode($submissions, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    return $result !== false;
+}
+
+// Function to add a new submission (returns new ID)
+function addSubmission($data) {
+    $db = getDb();
+    if ($db) {
+        $stmt = $db->prepare("INSERT INTO submissions_pending (title, description, category, difficulty, tags, components, z2m_part, code, image, contributor_name, contributor_email, source, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
+        $tags = json_encode($data['tags'] ?? []);
+        $components = json_encode($data['components'] ?? []);
+        $stmt->execute([
+            $data['title'],
+            $data['description'] ?? '',
+            $data['category'],
+            $data['difficulty'] ?? 'beginner',
+            $tags,
+            $components,
+            $data['z2m_part'] ?? '',
+            $data['code'],
+            $data['image'] ?? '',
+            $data['contributor_name'] ?? '',
+            $data['contributor_email'] ?? '',
+            $data['source'] ?? 'contributor',
+        ]);
+        return (int)$db->lastInsertId();
+    }
+    $submissions = getPendingSubmissions();
+    $id = 1;
+    foreach ($submissions as $s) {
+        if (isset($s['id']) && $s['id'] >= $id) $id = $s['id'] + 1;
+    }
+    $data['id'] = $id;
+    $data['status'] = 'pending';
+    $data['submitted_at'] = date('Y-m-d H:i:s');
+    $data['source'] = $data['source'] ?? 'contributor';
+    $submissions[] = $data;
+    saveSubmissions($submissions);
+    return $id;
+}
+
+// Function to get submission by ID
+function getSubmissionById($id) {
+    $db = getDb();
+    if ($db) {
+        $stmt = $db->prepare("SELECT * FROM submissions_pending WHERE id = ?");
+        $stmt->execute([$id]);
+        $r = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$r) return null;
+        return [
+            'id' => (int)$r['id'],
+            'title' => $r['title'],
+            'description' => $r['description'],
+            'category' => $r['category'],
+            'difficulty' => $r['difficulty'],
+            'tags' => json_decode($r['tags'] ?? '[]', true) ?: [],
+            'components' => json_decode($r['components'] ?? '[]', true) ?: [],
+            'z2m_part' => $r['z2m_part'],
+            'code' => $r['code'],
+            'image' => $r['image'],
+            'contributor_name' => $r['contributor_name'],
+            'contributor_email' => $r['contributor_email'],
+            'source' => $r['source'] ?? 'contributor',
+            'submitted_at' => $r['submitted_at'],
+        ];
+    }
+    $submissions = getPendingSubmissions();
+    foreach ($submissions as $s) {
+        if ($s['id'] == $id) return $s;
+    }
+    return null;
+}
+
+// Function to approve submission (move to codes, remove from pending)
+function approveSubmission($id) {
+    $submission = getSubmissionById($id);
+    if (!$submission) return false;
+    // Admin-added items are already in Codes - just remove from pending
+    if (($submission['source'] ?? '') === 'admin') {
+        return rejectSubmission($id);
+    }
+    $db = getDb();
+    if ($db) {
+        try {
+            $db->beginTransaction();
+            $newId = getNextAdminCodeId();
+            $stmt = $db->prepare("INSERT INTO codes (id, title, description, category, difficulty, tags, components, z2m_part, code, author, date, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([
+                $newId,
+                $submission['title'],
+                $submission['description'],
+                $submission['category'],
+                $submission['difficulty'] ?? 'beginner',
+                json_encode($submission['tags'] ?? []),
+                json_encode($submission['components'] ?? []),
+                $submission['z2m_part'] ?? '',
+                $submission['code'],
+                $submission['contributor_name'] ?? 'Contributor',
+                date('Y-m-d'),
+                $submission['image'] ?? '',
+            ]);
+            $db->prepare("DELETE FROM submissions_pending WHERE id = ?")->execute([$id]);
+            $db->commit();
+            return true;
+        } catch (Exception $e) {
+            $db->rollBack();
+            return false;
+        }
+    }
+    $codes = getAdminCodes();
+    $newCode = [
+        'id' => getNextAdminCodeId(),
+        'title' => $submission['title'],
+        'description' => $submission['description'],
+        'category' => $submission['category'],
+        'difficulty' => $submission['difficulty'] ?? 'beginner',
+        'tags' => $submission['tags'] ?? [],
+        'components' => $submission['components'] ?? [],
+        'z2m_part' => $submission['z2m_part'] ?? '',
+        'code' => $submission['code'],
+        'author' => $submission['contributor_name'] ?? 'Contributor',
+        'date' => date('Y-m-d'),
+        'image' => $submission['image'] ?? ''
+    ];
+    $codes[] = $newCode;
+    if (!saveAdminCodes($codes)) return false;
+    $submissions = getPendingSubmissions();
+    $submissions = array_values(array_filter($submissions, function($s) use ($id) { return $s['id'] != $id; }));
+    return saveSubmissions($submissions);
+}
+
+// Function to reject submission (remove from pending)
+function rejectSubmission($id) {
+    $db = getDb();
+    if ($db) {
+        $stmt = $db->prepare("DELETE FROM submissions_pending WHERE id = ?");
+        return $stmt->execute([$id]);
+    }
+    $submissions = getPendingSubmissions();
+    $submissions = array_values(array_filter($submissions, function($s) use ($id) { return $s['id'] != $id; }));
+    return saveSubmissions($submissions);
+}
+
+// Function to get admin-added codes (from MySQL or JSON file)
+function getAdminCodes() {
+    $out = [];
+    $db = getDb();
+    if ($db) {
+        try {
+            $stmt = $db->query("SELECT * FROM codes ORDER BY id ASC");
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($rows as $r) {
+                $out[] = [
+                    'id' => (int)$r['id'],
+                    'title' => $r['title'],
+                    'description' => $r['description'],
+                    'category' => $r['category'],
+                    'difficulty' => $r['difficulty'],
+                    'tags' => json_decode($r['tags'] ?? '[]', true) ?: [],
+                    'components' => json_decode($r['components'] ?? '[]', true) ?: [],
+                    'z2m_part' => $r['z2m_part'],
+                    'code' => $r['code'],
+                    'author' => $r['author'],
+                    'date' => $r['date'],
+                    'image' => $r['image'],
+                ];
+            }
+        } catch (Exception $e) {
+            // DB error - fall through to file
+        }
+    }
+    // Also load from JSON (fallback or when DB empty - merges legacy data)
+    if (file_exists(CODES_ADDED_FILE)) {
+        $json = file_get_contents(CODES_ADDED_FILE);
+        $fileCodes = json_decode($json, true);
+        if (is_array($fileCodes)) {
+            $existingIds = array_column($out, 'id');
+            foreach ($fileCodes as $c) {
+                if (!in_array($c['id'] ?? 0, $existingIds)) {
+                    $out[] = $c;
+                    $existingIds[] = $c['id'] ?? 0;
+                }
+            }
+        }
+    }
+    usort($out, function($a, $b) { return ($a['id'] ?? 0) - ($b['id'] ?? 0); });
+    return $out;
+}
+
+// Function to save admin-added codes (bulk - for file mode)
+function saveAdminCodes($codes) {
+    $db = getDb();
+    if ($db) return true; // DB uses insert/update/delete
+    $dir = dirname(CODES_ADDED_FILE);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    $result = file_put_contents(CODES_ADDED_FILE, json_encode($codes, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    return $result !== false;
+}
+
+// Insert new admin code (add.php)
+function insertAdminCode($code) {
+    $db = getDb();
+    if ($db) {
+        $stmt = $db->prepare("INSERT INTO codes (id, title, description, category, difficulty, tags, components, z2m_part, code, author, date, image) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        return $stmt->execute([
+            $code['id'],
+            $code['title'],
+            $code['description'],
+            $code['category'],
+            $code['difficulty'] ?? 'beginner',
+            json_encode($code['tags'] ?? []),
+            json_encode($code['components'] ?? []),
+            $code['z2m_part'] ?? '',
+            $code['code'],
+            $code['author'] ?? 'Zero2Maker',
+            $code['date'] ?? date('Y-m-d'),
+            $code['image'] ?? '',
+        ]);
+    }
+    $codes = getAdminCodes();
+    $codes[] = $code;
+    return saveAdminCodes($codes);
+}
+
+// Update admin code (edit.php)
+function updateAdminCode($id, $code) {
+    $db = getDb();
+    if ($db) {
+        $stmt = $db->prepare("UPDATE codes SET title=?, description=?, category=?, difficulty=?, tags=?, components=?, z2m_part=?, code=?, author=?, date=?, image=? WHERE id=?");
+        return $stmt->execute([
+            $code['title'],
+            $code['description'],
+            $code['category'],
+            $code['difficulty'] ?? 'beginner',
+            json_encode($code['tags'] ?? []),
+            json_encode($code['components'] ?? []),
+            $code['z2m_part'] ?? '',
+            $code['code'],
+            $code['author'] ?? 'Zero2Maker',
+            $code['date'] ?? date('Y-m-d'),
+            $code['image'] ?? '',
+            $id,
+        ]);
+    }
+    $codes = getAdminCodes();
+    foreach ($codes as $i => $c) {
+        if ($c['id'] == $id) {
+            $codes[$i] = array_merge($c, $code);
+            $codes[$i]['id'] = $id;
+            return saveAdminCodes($codes);
+        }
+    }
+    return false;
+}
+
+// Delete admin code (delete.php)
+function deleteAdminCode($id) {
+    $db = getDb();
+    if ($db) {
+        $stmt = $db->prepare("DELETE FROM codes WHERE id = ?");
+        return $stmt->execute([$id]);
+    }
+    $codes = array_values(array_filter(getAdminCodes(), function($c) use ($id) { return $c['id'] != $id; }));
+    return saveAdminCodes($codes);
+}
+
+// Function to get next ID for admin-added codes (start from 10000 to avoid conflict)
+function getNextAdminCodeId() {
+    $db = getDb();
+    if ($db) {
+        $r = $db->query("SELECT COALESCE(MAX(id), 9999) as mx FROM codes")->fetch(PDO::FETCH_ASSOC);
+        return (int)$r['mx'] + 1;
+    }
+    $codes = getAdminCodes();
+    $max = 9999;
+    foreach ($codes as $c) {
+        if (isset($c['id']) && $c['id'] > $max) $max = $c['id'];
+    }
+    return $max + 1;
+}
+
+// Function to get all codes (merged: built-in PHP + admin-added from DB/JSON)
 function getAllCodes() {
-    return include 'data/codes.php';
+    $dataFile = __DIR__ . '/data/codes.php';
+    $builtIn = [];
+    if (file_exists($dataFile)) {
+        $phpCodes = include $dataFile;
+        $builtIn = is_array($phpCodes) ? $phpCodes : [];
+    }
+    $adminCodes = getAdminCodes();
+    return array_merge($builtIn, $adminCodes);
 }
 
 // Function to get code by ID
@@ -78,17 +539,36 @@ function getCodeById($id) {
     return null;
 }
 
-// Function to get next code in list (by ID order)
-function getNextCode($currentId) {
+// Function to get next code within the same category (by ID order)
+function getNextCode($currentId, $category) {
     $codes = getAllCodes();
     $found = false;
     foreach ($codes as $code) {
+        if ($code['category'] !== $category) {
+            continue;
+        }
         if ($found) {
             return $code;
         }
         if ($code['id'] == $currentId) {
             $found = true;
         }
+    }
+    return null;
+}
+
+// Function to get previous code within the same category (by ID order)
+function getPrevCode($currentId, $category) {
+    $codes = getAllCodes();
+    $prev = null;
+    foreach ($codes as $code) {
+        if ($code['category'] !== $category) {
+            continue;
+        }
+        if ($code['id'] == $currentId) {
+            return $prev;
+        }
+        $prev = $code;
     }
     return null;
 }
@@ -106,28 +586,28 @@ function createSlug($text) {
 
 // Function to generate clean code URL (codes/category/category/slug)
 function getCodeUrl($code) {
-    $slug = createSlug($code['title']);
-    return BASE_URL . '/codes/category/' . $code['category'] . '/' . $slug;
+    $id = $code['id'] ?? 0;
+    return BASE_URL . '/projects/view.php?id=' . (int)$id;
 }
 
 // Function to generate category URL (clean URL)
 function getCategoryUrl($categoryKey) {
-    return BASE_URL . '/codes/category/' . $categoryKey;
+    return BASE_URL . '/projects?category=' . urlencode($categoryKey);
 }
 
 // Function to generate difficulty URL (clean URL)
 function getDifficultyUrl($difficultyKey) {
-    return BASE_URL . '/codes/difficulty/' . $difficultyKey;
+    return BASE_URL . '/projects?difficulty=' . urlencode($difficultyKey);
 }
 
 // Function to generate search URL (clean URL)
 function getSearchUrl($searchQuery) {
-    return BASE_URL . '/codes/search/' . urlencode($searchQuery);
+    return BASE_URL . '/projects?search=' . urlencode($searchQuery);
 }
 
 // Function to generate codes page URL (clean URL)
 function getCodesUrl() {
-    return BASE_URL . '/codes/category/projects';
+    return BASE_URL . '/projects';
 }
 
 // Function to generate home URL
@@ -153,10 +633,10 @@ function filterCodes($category = null, $difficulty = null, $search = null) {
         
         if ($search) {
             $searchLower = strtolower($search);
-            $titleMatch = strpos(strtolower($code['title']), $searchLower) !== false;
-            $descMatch = strpos(strtolower($code['description']), $searchLower) !== false;
+            $titleMatch = strpos(strtolower($code['title'] ?? ''), $searchLower) !== false;
+            $descMatch = strpos(strtolower($code['description'] ?? ''), $searchLower) !== false;
             $tagsMatch = false;
-            foreach ($code['tags'] as $tag) {
+            foreach ($code['tags'] ?? [] as $tag) {
                 if (strpos(strtolower($tag), $searchLower) !== false) {
                     $tagsMatch = true;
                     break;
@@ -175,8 +655,11 @@ function filterCodes($category = null, $difficulty = null, $search = null) {
     return $filtered;
 }
 
-// Function to get Z2M Part Number based on code title/components
+// Function to get Z2M Part Number based on code title/components or stored part
 function getZ2MPartNumber($code) {
+    if (isset($code['z2m_part']) && !empty($code['z2m_part'])) {
+        return $code['z2m_part'];
+    }
     $title = strtolower($code['title']);
     $components = isset($code['components']) ? $code['components'] : [];
     
@@ -216,8 +699,8 @@ function getZ2MPartNumber($code) {
         'motor driver' => 'EMA-00010-B',
         'smoke sensor' => 'EDT-00001-A to G',
         'analog temperature sensor' => 'EDS-00004-A',
-        'humidity sensor' => 'EMS-00002-A / EDT-00005-A',
-        'dht11' => 'EMS-00002-A / EDT-00005-A',
+        'humidity sensor' => 'EDT-00005-A',
+        'dht11' => 'EDT-00005-A',
         'neopixel' => 'EMA-00003-B to E',
         'soil sensor' => 'EMS-00019-A',
         'soil moisture' => 'EMS-00019-A',
@@ -277,14 +760,20 @@ function getZ2MPartNumber($code) {
     return null;
 }
 
+// Placeholder for missing circuit diagrams (dynamic with project title)
+define('PLACEHOLDER_IMAGE', 'assets/images/placeholder-circuit.svg');
+
 // Function to automatically get image path based on code title/components
+// Returns path if file exists, else placeholder when code has image ref, else empty
 function getCodeImagePath($code) {
-    $title = strtolower($code['title']);
+    $title = strtolower($code['title'] ?? '');
     $components = isset($code['components']) ? $code['components'] : [];
+    $basePath = __DIR__ . '/';
     
-    // If image already exists, return it
+    // If image already set in code, check if file exists
     if (isset($code['image']) && !empty($code['image'])) {
-        return $code['image'];
+        $path = $code['image'];
+        return file_exists($basePath . $path) ? $path : PLACEHOLDER_IMAGE;
     }
     
     // Image mapping based on titles/components
@@ -397,7 +886,7 @@ function getCodeImagePath($code) {
     // Check title for matches
     foreach ($imageMapping as $keyword => $imagePath) {
         if (strpos($title, $keyword) !== false) {
-            return $imagePath;
+            return file_exists($basePath . $imagePath) ? $imagePath : PLACEHOLDER_IMAGE;
         }
     }
     
@@ -407,14 +896,13 @@ function getCodeImagePath($code) {
             $componentLower = strtolower($component);
             foreach ($imageMapping as $keyword => $imagePath) {
                 if (strpos($componentLower, $keyword) !== false) {
-                    return $imagePath;
+                    return file_exists($basePath . $imagePath) ? $imagePath : PLACEHOLDER_IMAGE;
                 }
             }
         }
     }
     
-    // Default return empty string if no match
-    return '';
+    // Show placeholder for projects with no image (so all projects have diagram section)
+    return PLACEHOLDER_IMAGE;
 }
-?>
 
