@@ -130,13 +130,16 @@ $page_title = 'Submit Your Project';
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Z2M Part (optional)</label>
                     <p class="text-xs text-gray-500 mb-2">Select one or more parts if your project uses them.</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    <input type="text" id="z2m-part-search" placeholder="Search parts..." 
+                           class="mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                           autocomplete="off">
+                    <div id="z2m-parts-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
                         <?php 
                         $selectedParts = isset($_POST['z2m_parts']) && is_array($_POST['z2m_parts']) ? $_POST['z2m_parts'] : [];
                         foreach ($z2m_parts as $partNum => $partLabel): 
                             if ($partNum === '') continue;
                         ?>
-                        <label class="inline-flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded">
+                        <label class="z2m-part-item inline-flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded" data-search="<?php echo htmlspecialchars(strtolower($partLabel . ' ' . $partNum)); ?>">
                             <input type="checkbox" name="z2m_parts[]" value="<?php echo htmlspecialchars($partNum); ?>" class="mr-2 rounded"
                                 <?php echo in_array($partNum, $selectedParts) ? ' checked' : ''; ?>>
                             <span class="text-sm"><?php echo htmlspecialchars($partLabel); ?></span>
@@ -168,9 +171,12 @@ $page_title = 'Submit Your Project';
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Components</label>
                     <p class="text-xs text-gray-500 mb-2">Select from list or add custom components.</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
+                    <input type="text" id="components-search" placeholder="Search components..." 
+                           class="mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                           autocomplete="off">
+                    <div id="components-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
                         <?php foreach ($component_options as $comp): ?>
-                        <label class="inline-flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded">
+                        <label class="component-item inline-flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded" data-search="<?php echo htmlspecialchars(strtolower($comp)); ?>">
                             <input type="checkbox" name="components[]" value="<?php echo htmlspecialchars($comp); ?>" class="mr-2 rounded">
                             <span class="text-sm"><?php echo htmlspecialchars($comp); ?></span>
                         </label>
@@ -212,5 +218,20 @@ $page_title = 'Submit Your Project';
         }
     }
     toggleCodeInput();
+
+    function filterList(searchId, itemClass) {
+        var searchEl = document.getElementById(searchId);
+        if (!searchEl) return;
+        searchEl.addEventListener('input', function() {
+            var q = (this.value || '').toLowerCase().trim();
+            var items = document.querySelectorAll('.' + itemClass);
+            items.forEach(function(label) {
+                var text = (label.getAttribute('data-search') || '').toLowerCase();
+                label.style.display = text.indexOf(q) !== -1 ? '' : 'none';
+            });
+        });
+    }
+    filterList('z2m-part-search', 'z2m-part-item');
+    filterList('components-search', 'component-item');
     </script>
 <?php include __DIR__ . '/../includes/footer.php'; ?>
