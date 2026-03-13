@@ -45,8 +45,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <header class="bg-white shadow">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div class="flex justify-between items-center">
-                <h1 class="text-xl font-bold text-gray-900">Review Submission #<?php echo $id; ?></h1>
-                <div class="flex gap-4">
+                <div class="flex items-center gap-3">
+                    <img src="<?php echo BASE_URL; ?>/assets/images/z2m.svg" alt="Zero2Maker" class="h-8 w-auto" />
+                    <h1 class="text-xl font-bold text-gray-900">Review Submission #<?php echo $id; ?></h1>
+                </div>
+                <div class="flex items-center gap-4">
+                    <?php include __DIR__ . '/includes/notification-button.php'; ?>
                     <a href="<?php echo BASE_URL; ?>/admin/submissions.php" class="text-gray-600 hover:text-purple-600">← Back to list</a>
                     <a href="<?php echo BASE_URL; ?>/admin/logout.php" class="text-gray-600 hover:text-red-600">Logout</a>
                 </div>
@@ -67,9 +71,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="flex gap-2 text-sm">
                         <span class="bg-purple-100 text-purple-700 px-2 py-1 rounded"><?php echo $categories[$submission['category']]['name'] ?? $submission['category']; ?></span>
                         <span class="bg-gray-100 text-gray-700 px-2 py-1 rounded"><?php echo $difficulty_levels[$submission['difficulty']]['name'] ?? $submission['difficulty']; ?></span>
-                        <?php if (!empty($submission['z2m_part'])): ?>
-                        <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded"><?php echo htmlspecialchars($submission['z2m_part']); ?></span>
-                        <?php endif; ?>
+                        <?php 
+                        $z2mParts = array_filter(array_map('trim', explode(',', $submission['z2m_part'] ?? '')));
+                        foreach ($z2mParts as $zp): ?>
+                        <span class="bg-blue-100 text-blue-700 px-2 py-1 rounded"><?php echo htmlspecialchars($zp); ?></span>
+                        <?php endforeach; ?>
                     </div>
                 </div>
                 <div class="bg-white rounded-lg shadow p-6">

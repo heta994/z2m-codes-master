@@ -1,5 +1,5 @@
 <?php
-require_once 'config.php';
+require_once __DIR__ . '/config.php';
 
 // Get code ID or slug from URL (backward compatible with query strings)
 $code_id = 0;
@@ -10,19 +10,28 @@ if (isset($_GET['id'])) {
     $code_id = intval($_GET['id']);
     $code = getCodeById($code_id);
 }
-// Try to get by slug (if using slug-based URLs)
-elseif (isset($_GET['slug'])) {
-    $slug = $_GET['slug'];
-    $category = $_GET['category'] ?? null;
-    $all_codes = getAllCodes();
-    foreach ($all_codes as $c) {
-        if (createSlug($c['title']) === $slug) {
-            // If category is provided, it must match
-            if ($category && $c['category'] !== $category) {
-                continue;
+// Try to get by slug (if using pretty URL /projects/category/slug)
+elseif (isset($_GET['slug']) && trim((string)$_GET['slug']) !== '') {
+    $slug = createSlug(trim((string)$_GET['slug']));
+    $category = isset($_GET['category']) ? trim((string)$_GET['category']) : null;
+    // Support id-based fallback slug: project-123
+    if (preg_match('/^project-(\d+)$/', $slug, $m)) {
+        $byId = getCodeById((int)$m[1]);
+        if ($byId && ($category === null || $category === '' || ($byId['category'] ?? '') === $category)) {
+            $code = $byId;
+        }
+    }
+    if (!$code) {
+        $all_codes = getAllCodes();
+        foreach ($all_codes as $c) {
+            $cSlug = createSlug($c['title'] ?? '');
+            if ($cSlug !== '' && $cSlug === $slug) {
+                if ($category !== null && $category !== '' && ($c['category'] ?? '') !== $category) {
+                    continue;
+                }
+                $code = $c;
+                break;
             }
-            $code = $c;
-            break;
         }
     }
 }
@@ -33,12 +42,19 @@ if (!$code) {
     exit;
 }
 
+// Redirect old ?id= URLs to pretty URL /projects/category/project-name
+if (isset($_GET['id']) && !isset($_GET['slug'])) {
+    $prettyUrl = getCodeUrl($code);
+    header('Location: ' . $prettyUrl, true, 301);
+    exit;
+}
+
 $page_title = $code['title'];
 $difficulty_color = $difficulty_levels[$code['difficulty'] ?? 'beginner']['color'];
 $codeCategory = $code['category'] ?? 'projects';
 ?>
 
-<?php include 'includes/header.php'; ?>
+<?php include __DIR__ . '/includes/header.php'; ?>
 
 <!-- Breadcrumb -->
 <div class="bg-gray-100 py-4">
@@ -92,12 +108,12 @@ $codeCategory = $code['category'] ?? 'projects';
                 </h1>
                 
                 <?php 
-                $partNumber = getZ2MPartNumber($code);
-                if ($partNumber): 
+                $partNumbers = getZ2MPartNumbers($code);
+                if (!empty($partNumbers)): 
                 ?>
                 <div class="mb-4">
-                    <span class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Z2M Part Number:</span>
-                    <span class="ml-2 text-lg font-bold text-purple-600"><?php echo $partNumber; ?></span>
+                    <span class="text-sm font-semibold text-gray-600 uppercase tracking-wide">Z2M Part<?php echo count($partNumbers) > 1 ? 's' : ''; ?>:</span>
+                    <span class="ml-2 text-lg font-bold text-purple-600"><?php echo htmlspecialchars(implode(', ', $partNumbers)); ?></span>
                 </div>
                 <?php endif; ?>
                 
@@ -115,20 +131,19 @@ $codeCategory = $code['category'] ?? 'projects';
                 </div>
             </div>
             
-            <!-- Circuit Diagram Image -->
+            <!-- Circuit Diagram Image (only show when project has a real diagram, not placeholder) -->
             <?php 
             $imagePath = getCodeImagePath($code);
             $isPlaceholder = ($imagePath === PLACEHOLDER_IMAGE);
-            $imgSrc = $isPlaceholder ? (BASE_URL . '/assets/images/placeholder.php?title=' . urlencode($code['title'])) : (BASE_URL . '/' . $imagePath);
-            if (!empty($imagePath)): 
+            if (!empty($imagePath) && !$isPlaceholder): 
+                $imgSrc = BASE_URL . '/' . $imagePath;
             ?>
             <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
                 <div class="bg-gray-800 px-6 py-4">
                     <span class="text-white font-semibold">Circuit Diagram</span>
-                    <?php if ($isPlaceholder): ?><span class="text-gray-400 text-sm ml-2">(placeholder)</span><?php endif; ?>
                 </div>
                 <div class="p-4 flex justify-center bg-gray-50">
-                    <img src="<?php echo $imgSrc; ?>" 
+                    <img src="<?php echo htmlspecialchars($imgSrc); ?>" 
                          alt="<?php echo htmlspecialchars($code['title']); ?> Circuit Diagram" 
                          class="max-w-full h-auto rounded-lg shadow-sm border border-gray-200">
                 </div>
@@ -139,15 +154,15 @@ $codeCategory = $code['category'] ?? 'projects';
             <div class="bg-white rounded-xl shadow-lg overflow-hidden mb-8">
                 <div class="bg-gray-800 px-6 py-4 flex items-center justify-between">
                     <span class="text-white font-semibold">Arduino Code</span>
-                    <button onclick="copyCode()" 
+                    <button type="button" id="copy-code-btn" onclick="copyCode(this)" 
                             class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
                         </svg>
-                        Copy Code
+                        <span id="copy-code-label">Copy Code</span>
                     </button>
                 </div>
-                <pre><code id="code-block" class="language-arduino"><?php echo htmlspecialchars($code['code']); ?></code></pre>
+                <pre class="overflow-x-auto p-4 text-sm"><code id="code-block" class="language-arduino block"><?php echo htmlspecialchars($code['code'] ?? ''); ?></code></pre>
             </div>
             
             <!-- How to Use -->
@@ -238,25 +253,46 @@ $codeCategory = $code['category'] ?? 'projects';
 </div>
 
 <script>
-function copyCode() {
-    const codeBlock = document.getElementById('code-block');
-    const textArea = document.createElement('textarea');
-    textArea.value = codeBlock.textContent;
-    document.body.appendChild(textArea);
-    textArea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textArea);
+function copyCode(buttonEl) {
+    var codeBlock = document.getElementById('code-block');
+    var label = document.getElementById('copy-code-label');
+    if (!codeBlock || !label) return;
+    var text = (codeBlock.textContent || codeBlock.innerText || '').trim();
+    var btn = buttonEl && buttonEl.nodeName === 'BUTTON' ? buttonEl : (buttonEl && buttonEl.closest ? buttonEl.closest('button') : null);
     
-    // Show feedback
-    const button = event.target.closest('button');
-    const originalHTML = button.innerHTML;
-    button.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Copied!';
+    function showDone() {
+        if (label) label.textContent = 'Copied!';
+        if (btn) btn.classList.add('bg-green-600');
+        setTimeout(function() {
+            if (label) label.textContent = 'Copy Code';
+            if (btn) btn.classList.remove('bg-green-600');
+        }, 2000);
+    }
     
-    setTimeout(() => {
-        button.innerHTML = originalHTML;
-    }, 2000);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showDone).catch(function() {
+            fallbackCopy();
+        });
+    } else {
+        fallbackCopy();
+    }
+    
+    function fallbackCopy() {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand('copy');
+            showDone();
+        } catch (e) {}
+        document.body.removeChild(ta);
+    }
 }
 </script>
 
-<?php include 'includes/footer.php'; ?>
+<?php include __DIR__ . '/includes/footer.php'; ?>
 

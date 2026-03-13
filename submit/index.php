@@ -15,7 +15,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $codeSource = $_POST['code_source'] ?? 'paste';
     $category = $_POST['category'] ?? '';
     $difficulty = $_POST['difficulty'] ?? 'beginner';
-    $z2mPart = trim($_POST['z2m_part'] ?? '');
+    $z2mParts = isset($_POST['z2m_parts']) && is_array($_POST['z2m_parts']) ? array_values(array_filter($_POST['z2m_parts'])) : [];
+    $z2mPart = implode(',', $z2mParts);
     $contributorName = trim($_POST['contributor_name'] ?? '');
     $contributorEmail = trim($_POST['contributor_email'] ?? '');
     
@@ -29,6 +30,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $components = isset($_POST['components']) && is_array($_POST['components']) 
         ? array_values(array_filter($_POST['components'])) 
         : [];
+    $customComponents = trim($_POST['custom_components'] ?? '');
+    if ($customComponents !== '') {
+        $custom = array_map('trim', array_filter(explode(',', $customComponents)));
+        $components = array_values(array_unique(array_merge($components, $custom)));
+    }
     
     $imagePath = '';
     if (!empty($_FILES['image']['name']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
@@ -66,6 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'contributor_email' => $contributorEmail
         ];
         $id = addSubmission($submission);
+        sendAdminSubmissionNotification($id, $submission);
         header('Location: ' . BASE_URL . '/submit/success.php?id=' . $id);
         exit;
     }
@@ -121,12 +128,21 @@ $page_title = 'Submit Your Project';
                     </div>
                 </div>
                 <div>
-                    <label for="z2m_part" class="block text-sm font-medium text-gray-700 mb-1">Z2M Part (optional)</label>
-                    <select id="z2m_part" name="z2m_part" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600">
-                        <?php foreach ($z2m_parts as $partNum => $partLabel): ?>
-                        <option value="<?php echo htmlspecialchars($partNum); ?>"><?php echo htmlspecialchars($partLabel); ?></option>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Z2M Part (optional)</label>
+                    <p class="text-xs text-gray-500 mb-2">Select one or more parts if your project uses them.</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
+                        <?php 
+                        $selectedParts = isset($_POST['z2m_parts']) && is_array($_POST['z2m_parts']) ? $_POST['z2m_parts'] : [];
+                        foreach ($z2m_parts as $partNum => $partLabel): 
+                            if ($partNum === '') continue;
+                        ?>
+                        <label class="inline-flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded">
+                            <input type="checkbox" name="z2m_parts[]" value="<?php echo htmlspecialchars($partNum); ?>" class="mr-2 rounded"
+                                <?php echo in_array($partNum, $selectedParts) ? ' checked' : ''; ?>>
+                            <span class="text-sm"><?php echo htmlspecialchars($partLabel); ?></span>
+                        </label>
                         <?php endforeach; ?>
-                    </select>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Code *</label>
@@ -150,7 +166,8 @@ $page_title = 'Submit Your Project';
                     <input type="file" id="image" name="image" accept="image/jpeg,image/png,image/gif,image/webp" required class="w-full px-4 py-2 border border-gray-300 rounded-lg">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Select Components</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Components</label>
+                    <p class="text-xs text-gray-500 mb-2">Select from list or add custom components.</p>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3 bg-gray-50">
                         <?php foreach ($component_options as $comp): ?>
                         <label class="inline-flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded">
@@ -159,15 +176,19 @@ $page_title = 'Submit Your Project';
                         </label>
                         <?php endforeach; ?>
                     </div>
+                    <input type="text" name="custom_components" id="custom_components" 
+                           placeholder="Add custom component (comma-separated)" 
+                           class="mt-2 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 text-sm"
+                           value="<?php echo htmlspecialchars($_POST['custom_components'] ?? ''); ?>">
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label for="contributor_name" class="block text-sm font-medium text-gray-700 mb-1">Your Name (optional)</label>
+                        <label for="contributor_name" class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
                         <input type="text" id="contributor_name" name="contributor_name" class="w-full px-4 py-2 border border-gray-300 rounded-lg"
                                value="<?php echo htmlspecialchars($_POST['contributor_name'] ?? ''); ?>">
                     </div>
                     <div>
-                        <label for="contributor_email" class="block text-sm font-medium text-gray-700 mb-1">Your Email (optional)</label>
+                        <label for="contributor_email" class="block text-sm font-medium text-gray-700 mb-1">Your Email</label>
                         <input type="email" id="contributor_email" name="contributor_email" class="w-full px-4 py-2 border border-gray-300 rounded-lg"
                                value="<?php echo htmlspecialchars($_POST['contributor_email'] ?? ''); ?>">
                     </div>

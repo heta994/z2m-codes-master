@@ -1,9 +1,9 @@
 <?php
-require_once 'config.php';
+require_once __DIR__ . '/config.php';
 $page_title = 'Home';
 ?>
 
-<?php include 'includes/header.php'; ?>
+<?php include __DIR__ . '/includes/header.php'; ?>
 
 <!-- Hero Section -->
 <div class="gradient-bg text-white py-20">
@@ -125,7 +125,7 @@ $page_title = 'Home';
                     ?>
                     <div class="mb-3">
                         <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Z2M Part Number:</span>
-                        <a href="<?php echo getCodeUrl($code); ?>" class="ml-2 text-sm font-bold text-purple-600 hover:text-purple-700 hover:underline transition cursor-pointer">
+                        <a href="<?php echo htmlspecialchars(getCodeUrl($code), ENT_QUOTES, 'UTF-8'); ?>" class="ml-2 text-sm font-bold text-purple-600 hover:text-purple-700 hover:underline transition cursor-pointer">
                             <?php echo $partNumber; ?>
                         </a>
                     </div>
@@ -140,8 +140,9 @@ $page_title = 'Home';
                         <?php endforeach; ?>
                     </div>
                     
-                    <a href="<?php echo getCodeUrl($code); ?>" 
-                       class="inline-flex items-center text-purple-600 font-semibold hover:text-purple-700 transition">
+                    <a href="<?php echo htmlspecialchars(getCodeUrl($code), ENT_QUOTES, 'UTF-8'); ?>" 
+                       class="inline-flex items-center text-purple-600 font-semibold hover:text-purple-700 transition"
+                       title="View code">
                         View Code
                         <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
@@ -210,5 +211,5 @@ $page_title = 'Home';
     </div>
 </div>
 
-<?php include 'includes/footer.php'; ?>
+<?php include __DIR__ . '/includes/footer.php'; ?>
 

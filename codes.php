@@ -1,36 +1,37 @@
 <?php
-require_once 'config.php';
+require_once __DIR__ . '/config.php';
 
 // Get filter parameters (support both clean URLs and query strings)
 $selected_category = isset($_GET['category']) ? $_GET['category'] : null;
 $selected_difficulty = isset($_GET['difficulty']) ? $_GET['difficulty'] : null;
 $search_query = isset($_GET['search']) ? $_GET['search'] : null;
 
-// Backward compatibility: Redirect old query string URLs to clean URLs
-// This ensures old URLs like codes.php?category=sensors redirect to /category/sensors
-$request_uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$query_string = $_SERVER['QUERY_STRING'] ?? '';
-
-// Only redirect if accessing codes.php directly (not via clean URL rewrite)
-if (strpos($request_uri, 'codes.php') !== false && !empty($query_string)) {
-    $clean_url = '';
-    if ($selected_category) {
-        $clean_url = getCategoryUrl($selected_category);
-    } elseif ($selected_difficulty) {
-        $clean_url = getDifficultyUrl($selected_difficulty);
-    } elseif ($search_query) {
-        $clean_url = getSearchUrl($search_query);
+// Redirect /projects?category=name to /projects/name so the full category URL appears in the address bar
+$request_uri = $_SERVER['REQUEST_URI'] ?? '';
+$path_part = parse_url($request_uri, PHP_URL_PATH);
+$path_part = $path_part ? rtrim($path_part, '/') : '';
+if ($selected_category && $selected_category !== 'projects' && (preg_match('#/projects$#', $path_part) || $path_part === '')) {
+    $query = $_GET;
+    unset($query['category']);
+    $clean_path = rtrim(BASE_URL, '/') . '/projects/' . $selected_category;
+    if (!empty($query)) {
+        $clean_path .= '?' . http_build_query($query);
     }
-    
-    // Redirect to clean URL (301 permanent redirect for SEO)
-    if ($clean_url) {
-        header('Location: ' . $clean_url, true, 301);
-        exit;
-    }
+    header('Location: ' . $clean_path, true, 301);
+    exit;
 }
 
-// Filter codes (projects = show all)
-$filter_category = ($selected_category === 'projects' || empty($selected_category)) ? null : $selected_category;
+// Backward compatibility: Redirect old codes.php?category=x to /projects/category-name
+if (strpos($path_part ?? '', 'codes.php') !== false && $selected_category && $selected_category !== 'projects') {
+    header('Location: ' . getCategoryUrl($selected_category), true, 301);
+    exit;
+}
+
+// Filter codes: when a category is selected, show only projects from that category
+$filter_category = null;
+if ($selected_category !== null && $selected_category !== '' && $selected_category !== 'projects') {
+    $filter_category = $selected_category;
+}
 $filtered_codes = filterCodes($filter_category, $selected_difficulty, $search_query);
 
 // Page title
@@ -40,7 +41,7 @@ if ($selected_category && isset($categories[$selected_category])) {
 }
 ?>
 
-<?php include 'includes/header.php'; ?>
+<?php include __DIR__ . '/includes/header.php'; ?>
 
 <!-- Page Header -->
 <div class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-12">
@@ -95,7 +96,7 @@ if ($selected_category && isset($categories[$selected_category])) {
         <div class="flex-1 min-w-0">
 <!-- Search and Filter Section -->
     <div class="bg-white rounded-lg shadow-md p-6">
-        <form method="GET" action="<?php echo getCodesUrl(); ?>" class="space-y-4" id="filter-form">
+        <form method="GET" action="<?php echo ($selected_category && $selected_category !== 'projects') ? getCategoryUrl($selected_category) : getCodesUrl(); ?>" class="space-y-4" id="filter-form">
             <!-- Search Bar -->
             <div class="relative">
                 <input type="text" 
@@ -112,11 +113,11 @@ if ($selected_category && isset($categories[$selected_category])) {
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <!-- Category Filter -->
                 <select name="category" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent">
-                    <option value="">All Categories</option>
+                    <option value="" <?php echo ($selected_category === null || $selected_category === '' || $selected_category === 'projects') ? 'selected' : ''; ?>>All Projects</option>
                     <?php foreach ($categories as $cat_key => $category): ?>
                         <?php if ($cat_key === 'projects') continue; ?>
-                        <option value="<?php echo $cat_key; ?>" <?php echo $selected_category == $cat_key ? 'selected' : ''; ?>>
-                            <?php echo $category['icon'] . ' ' . $category['name']; ?>
+                        <option value="<?php echo htmlspecialchars($cat_key); ?>" <?php echo $selected_category === $cat_key ? 'selected' : ''; ?>>
+                            <?php echo $category['icon'] . ' ' . htmlspecialchars($category['name']); ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -195,7 +196,7 @@ if ($selected_category && isset($categories[$selected_category])) {
                         ?>
                         <div class="mb-3">
                             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Z2M Part Number:</span>
-                            <a href="<?php echo getCodeUrl($code); ?>" class="ml-2 text-sm font-bold text-purple-600 hover:text-purple-700 hover:underline transition cursor-pointer">
+                            <a href="<?php echo htmlspecialchars(getCodeUrl($code), ENT_QUOTES, 'UTF-8'); ?>" class="ml-2 text-sm font-bold text-purple-600 hover:text-purple-700 hover:underline transition cursor-pointer" title="View code">
                                 <?php echo $partNumber; ?>
                             </a>
                         </div>
@@ -218,8 +219,10 @@ if ($selected_category && isset($categories[$selected_category])) {
                             <span class="text-sm text-gray-500">
                                 <?php echo date('M d, Y', strtotime($code['date'] ?? 'now')); ?>
                             </span>
-                            <a href="<?php echo getCodeUrl($code); ?>" 
-                               class="inline-flex items-center text-purple-600 font-semibold hover:text-purple-700 transition">
+                            <a href="<?php echo htmlspecialchars(getCodeUrl($code), ENT_QUOTES, 'UTF-8'); ?>" 
+                               class="inline-flex items-center text-purple-600 font-semibold hover:text-purple-700 transition relative z-10"
+                               title="View code for <?php echo htmlspecialchars($code['title'] ?? 'project'); ?>"
+                               rel="nofollow">
                                 View Code
                                 <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
@@ -251,5 +254,5 @@ if ($selected_category && isset($categories[$selected_category])) {
     </div><!-- end flex container -->
 </div>
 
-<?php include 'includes/footer.php'; ?>
+<?php include __DIR__ . '/includes/footer.php'; ?>
 

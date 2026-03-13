@@ -72,6 +72,21 @@ if ($requestPath === 'submit' || $requestPath === 'submit/' || strpos($requestPa
     return true;
 }
 
+// Pretty project URL: /projects/category-name/project-name (two segments = single project)
+if (preg_match('#^projects/([a-zA-Z0-9-]+)/([a-zA-Z0-9-]+)$#', $requestPath, $matches)) {
+    $_GET['category'] = $matches[1];
+    $_GET['slug'] = $matches[2];
+    require __DIR__ . '/view-code.php';
+    return true;
+}
+
+// Category listing: /projects/category-name (one segment = list projects in that category)
+if (preg_match('#^projects/([a-zA-Z0-9-]+)$#', $requestPath, $matches)) {
+    $_GET['category'] = $matches[1];
+    require __DIR__ . '/codes.php';
+    return true;
+}
+
 // Clean URL routing patterns
 // /codes/category/arduino-basics/blink-led (Project - must be before category-only)
 if (preg_match('#^codes/category/([a-zA-Z0-9-]+)/([a-zA-Z0-9-]+)$#', $requestPath, $matches)) {
@@ -117,7 +132,8 @@ if ($requestPath === 'codes/home' || $requestPath === 'home') {
 }
 
 // /codes, /projects, or /codes.php (Projects listing - all projects visible)
-if ($requestPath === 'codes' || $requestPath === 'projects' || $requestPath === 'all-codes' || $requestPath === 'codes.php') {
+$listingPath = rtrim($requestPath, '/');
+if ($listingPath === 'codes' || $listingPath === 'projects' || $listingPath === 'all-codes' || $listingPath === 'codes.php') {
     if (empty($_GET['category'])) {
         $_GET['category'] = 'projects';
     }

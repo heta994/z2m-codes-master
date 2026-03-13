@@ -22,8 +22,12 @@ $rejected = isset($_GET['rejected']);
     <header class="bg-white shadow">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
             <div class="flex justify-between items-center">
-                <h1 class="text-xl font-bold text-gray-900">Pending Submissions</h1>
-                <div class="flex gap-4">
+                <div class="flex items-center gap-3">
+                    <img src="<?php echo BASE_URL; ?>/assets/images/z2m.svg" alt="Zero2Maker" class="h-8 w-auto" />
+                    <h1 class="text-xl font-bold text-gray-900">Pending Submissions</h1>
+                </div>
+                <div class="flex items-center gap-4">
+                    <?php include __DIR__ . '/includes/notification-button.php'; ?>
                     <a href="<?php echo BASE_URL; ?>/admin/" class="text-gray-600 hover:text-purple-600">← Dashboard</a>
                     <a href="<?php echo BASE_URL; ?>/admin/logout.php" class="text-gray-600 hover:text-red-600">Logout</a>
                 </div>

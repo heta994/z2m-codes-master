@@ -74,6 +74,18 @@ $difficulty_levels = [
 define('ADMIN_EMAIL', 'admin@z2m.com');
 define('ADMIN_PASSWORD', 'Admin123');
 
+// Admin notification email - receives alerts when students submit projects
+define('ADMIN_NOTIFY_EMAIL', 'hptinkering@gmail.com');
+
+// SMTP with PHPMailer (uses PHPMailer-master folder) - Gmail
+define('USE_SMTP', true);
+define('SMTP_HOST', 'smtp.gmail.com');
+define('SMTP_PORT', 587);
+define('SMTP_USER', 'hptinkering@gmail.com');
+define('SMTP_PASS', 'APP_PASSWORD');   // Replace with Gmail App Password from https://myaccount.google.com/apppasswords
+define('SMTP_FROM_EMAIL', 'hptinkering@gmail.com');
+define('SMTP_FROM_NAME', 'Project System');
+
 // Z2M Part numbers for admin part selection dropdown
 $z2m_parts = [
     '' => '-- Select Part (optional) --',
@@ -274,6 +286,126 @@ function addSubmission($data) {
     return $id;
 }
 
+// Send admin notification email when a student submits a project
+function sendAdminSubmissionNotification($id, $submission) {
+    $to = defined('ADMIN_NOTIFY_EMAIL') ? ADMIN_NOTIFY_EMAIL : '';
+    if (empty($to)) return false;
+
+    $reviewUrl = BASE_URL . '/admin/review.php?id=' . (int)$id;
+    $studentName = !empty($submission['contributor_name']) ? htmlspecialchars($submission['contributor_name']) : 'A student';
+    $projectTitle = htmlspecialchars($submission['title'] ?? 'Untitled Project');
+    $categoryName = isset($categories[$submission['category'] ?? '']) ? $categories[$submission['category']]['name'] : ($submission['category'] ?? '');
+
+    $subject = '[' . SITE_NAME . '] New Project Submission: ' . $projectTitle;
+
+    $htmlBody = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">';
+    $htmlBody .= '<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0;">';
+    $htmlBody .= '<h1 style="margin: 0; font-size: 24px;">New Project Submission</h1>';
+    $htmlBody .= '<p style="margin: 8px 0 0 0; opacity: 0.95;">' . SITE_NAME . '</p>';
+    $htmlBody .= '</div>';
+    $htmlBody .= '<div style="background: #f9fafb; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">';
+    $htmlBody .= '<p style="margin: 0 0 16px 0;">' . $studentName . ' has submitted a project for review.</p>';
+    $htmlBody .= '<p style="margin: 0 0 16px 0;"><strong>Project:</strong> ' . $projectTitle . '</p>';
+    $htmlBody .= '<p style="margin: 0 0 24px 0;"><strong>Category:</strong> ' . $categoryName . '</p>';
+    $htmlBody .= '<p style="margin: 0 0 24px 0;">This student has submitted this project. Please review and approve it.</p>';
+    $htmlBody .= '<a href="' . htmlspecialchars($reviewUrl) . '" style="display: inline-block; background: #7c3aed; color: white !important; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 8px; font-size: 16px;">Review & Approve</a>';
+    $htmlBody .= '</div>';
+    $htmlBody .= '<p style="margin-top: 20px; font-size: 12px; color: #6b7280;">This is an automated notification from ' . SITE_NAME . '.</p>';
+    $htmlBody .= '</body></html>';
+
+    return sendEmail($to, $subject, $htmlBody, !empty($submission['contributor_email']) ? $submission['contributor_email'] : '');
+}
+
+// Load PHPMailer from PHPMailer-master or Composer vendor
+function loadPHPMailer() {
+    $vendor = __DIR__ . '/../vendor/autoload.php';
+    if (file_exists($vendor)) {
+        require_once $vendor;
+        return true;
+    }
+    $src = __DIR__ . '/../PHPMailer-master/src';
+    if (is_dir($src)) {
+        require_once $src . '/Exception.php';
+        require_once $src . '/SMTP.php';
+        require_once $src . '/PHPMailer.php';
+        return true;
+    }
+    return false;
+}
+
+// Send email (shared: PHP mail or PHPMailer SMTP)
+function sendEmail($to, $subject, $htmlBody, $replyTo = '') {
+    if (empty($to) || !is_string($to)) return false;
+    $to = trim($to);
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+
+    $fromDomain = parse_url(BASE_URL, PHP_URL_HOST) ?: 'z2mcodes.com';
+    $fromEmail = 'noreply@' . $fromDomain;
+    $fromName = SITE_NAME;
+
+    if (defined('USE_SMTP') && USE_SMTP && !empty(SMTP_USER) && !empty(SMTP_PASS) && SMTP_PASS !== 'APP_PASSWORD') {
+        if (loadPHPMailer()) {
+            try {
+                $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
+                $mail->isSMTP();
+                $mail->Host = SMTP_HOST;
+                $mail->SMTPAuth = true;
+                $mail->Username = SMTP_USER;
+                $mail->Password = SMTP_PASS;
+                $mail->SMTPSecure = 'tls';
+                $mail->Port = SMTP_PORT;
+                $mail->setFrom(defined('SMTP_FROM_EMAIL') ? SMTP_FROM_EMAIL : $fromEmail, defined('SMTP_FROM_NAME') ? SMTP_FROM_NAME : $fromName);
+                $mail->addAddress($to);
+                if (!empty($replyTo)) $mail->addReplyTo($replyTo);
+                $mail->isHTML(true);
+                $mail->CharSet = 'UTF-8';
+                $mail->Subject = $subject;
+                $mail->Body = $htmlBody;
+                return $mail->send();
+            } catch (\Exception $e) {
+                error_log('Email send failed: ' . $e->getMessage());
+                return false;
+            }
+        }
+    }
+
+    $headers = [
+        'MIME-Version: 1.0',
+        'Content-type: text/html; charset=UTF-8',
+        'From: ' . $fromName . ' <' . $fromEmail . '>',
+        'Reply-To: ' . (!empty($replyTo) ? $replyTo : $fromEmail),
+        'X-Mailer: PHP/' . phpversion(),
+    ];
+    return @mail($to, $subject, $htmlBody, implode("\r\n", $headers));
+}
+
+// Notify student when their project is approved
+function sendStudentApprovalNotification($submission, $projectViewUrl) {
+    $to = !empty($submission['contributor_email']) ? trim($submission['contributor_email']) : '';
+    if (empty($to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) return false;
+
+    $studentName = !empty($submission['contributor_name']) ? htmlspecialchars($submission['contributor_name']) : 'there';
+    $projectTitle = htmlspecialchars($submission['title'] ?? 'Your project');
+
+    $subject = '[' . SITE_NAME . '] Your project "' . $projectTitle . '" has been approved!';
+
+    $htmlBody = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">';
+    $htmlBody .= '<div style="background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; padding: 24px; border-radius: 8px 8px 0 0;">';
+    $htmlBody .= '<h1 style="margin: 0; font-size: 24px;">Project Approved</h1>';
+    $htmlBody .= '<p style="margin: 8px 0 0 0; opacity: 0.95;">' . SITE_NAME . '</p>';
+    $htmlBody .= '</div>';
+    $htmlBody .= '<div style="background: #f9fafb; padding: 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">';
+    $htmlBody .= '<p style="margin: 0 0 16px 0;">Hi ' . $studentName . ',</p>';
+    $htmlBody .= '<p style="margin: 0 0 16px 0;">Great news! Your project <strong>' . $projectTitle . '</strong> has been reviewed and approved. It is now published on the ' . SITE_NAME . ' code library.</p>';
+    $htmlBody .= '<p style="margin: 0 0 24px 0;">Thank you for your contribution!</p>';
+    $htmlBody .= '<a href="' . htmlspecialchars($projectViewUrl) . '" style="display: inline-block; background: #7c3aed; color: white !important; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 8px; font-size: 16px;">View your project</a>';
+    $htmlBody .= '</div>';
+    $htmlBody .= '<p style="margin-top: 20px; font-size: 12px; color: #6b7280;">This is an automated message from ' . SITE_NAME . '.</p>';
+    $htmlBody .= '</body></html>';
+
+    return sendEmail($to, $subject, $htmlBody, defined('ADMIN_NOTIFY_EMAIL') ? ADMIN_NOTIFY_EMAIL : '');
+}
+
 // Function to get submission by ID
 function getSubmissionById($id) {
     $db = getDb();
@@ -336,6 +468,8 @@ function approveSubmission($id) {
             ]);
             $db->prepare("DELETE FROM submissions_pending WHERE id = ?")->execute([$id]);
             $db->commit();
+            $projectViewUrl = getCodeUrl(['id' => $newId]);
+            sendStudentApprovalNotification($submission, $projectViewUrl);
             return true;
         } catch (Exception $e) {
             $db->rollBack();
@@ -361,7 +495,10 @@ function approveSubmission($id) {
     if (!saveAdminCodes($codes)) return false;
     $submissions = getPendingSubmissions();
     $submissions = array_values(array_filter($submissions, function($s) use ($id) { return $s['id'] != $id; }));
-    return saveSubmissions($submissions);
+    saveSubmissions($submissions);
+    $projectViewUrl = getCodeUrl($newCode);
+    sendStudentApprovalNotification($submission, $projectViewUrl);
+    return true;
 }
 
 // Function to reject submission (remove from pending)
@@ -584,30 +721,53 @@ function createSlug($text) {
     return $text;
 }
 
-// Function to generate clean code URL (codes/category/category/slug)
+// Function to generate clean code URL: /projects/category-name/project-name (unique for every project)
 function getCodeUrl($code) {
-    $id = $code['id'] ?? 0;
-    return BASE_URL . '/projects/view.php?id=' . (int)$id;
+    if (isset($code['id']) && (!isset($code['title']) || !isset($code['category']))) {
+        $resolved = getCodeById($code['id']);
+        if ($resolved) $code = $resolved;
+    }
+    $category = isset($code['category']) && $code['category'] !== '' ? $code['category'] : 'projects';
+    $slug = createSlug($code['title'] ?? 'project');
+    if ($slug === '') {
+        $slug = 'project-' . (isset($code['id']) ? (int)$code['id'] : 0);
+    }
+    $base = defined('BASE_URL') ? rtrim(BASE_URL, '/') : '';
+    if ($base === '') {
+        $base = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        $path = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
+        if ($path !== '/' && $path !== '' && $path !== '.') {
+            $base .= '/' . trim($path, '/');
+        }
+    }
+    return $base . '/projects/' . $category . '/' . $slug;
 }
 
-// Function to generate category URL (clean URL)
+// Function to generate category URL: /projects/category-name (full URL in address bar)
 function getCategoryUrl($categoryKey) {
-    return BASE_URL . '/projects?category=' . urlencode($categoryKey);
+    $base = rtrim(BASE_URL, '/');
+    $key = trim((string)$categoryKey);
+    if ($key === '' || $key === 'projects') {
+        return $base . '/projects';
+    }
+    return $base . '/projects/' . $key;
 }
 
 // Function to generate difficulty URL (clean URL)
 function getDifficultyUrl($difficultyKey) {
-    return BASE_URL . '/projects?difficulty=' . urlencode($difficultyKey);
+    $base = rtrim(BASE_URL, '/');
+    return $base . '/projects?difficulty=' . urlencode((string)$difficultyKey);
 }
 
 // Function to generate search URL (clean URL)
 function getSearchUrl($searchQuery) {
-    return BASE_URL . '/projects?search=' . urlencode($searchQuery);
+    $base = rtrim(BASE_URL, '/');
+    return $base . '/projects?search=' . urlencode((string)$searchQuery);
 }
 
-// Function to generate codes page URL (clean URL)
+// Function to generate codes page URL (projects listing)
 function getCodesUrl() {
-    return BASE_URL . '/projects';
+    return rtrim(BASE_URL, '/') . '/projects';
 }
 
 // Function to generate home URL
@@ -615,29 +775,38 @@ function getHomeUrl() {
     return rtrim(BASE_URL, '/') . '/';
 }
 
-// Function to filter codes
+// Function to filter codes (category = only show projects from that category)
 function filterCodes($category = null, $difficulty = null, $search = null) {
     $codes = getAllCodes();
     $filtered = [];
     
+    $categoryNorm = $category !== null && $category !== '' ? strtolower(trim($category)) : null;
+    // When "All Projects" or no category: show all. Otherwise only show matching category.
+    if ($categoryNorm === 'projects') {
+        $categoryNorm = null;
+    }
+    
     foreach ($codes as $code) {
         $match = true;
         
-        if ($category && $code['category'] != $category) {
-            $match = false;
+        if ($categoryNorm !== null) {
+            $codeCat = strtolower(trim($code['category'] ?? ''));
+            if ($codeCat !== $categoryNorm) {
+                $match = false;
+            }
         }
         
-        if ($difficulty && $code['difficulty'] != $difficulty) {
+        if ($difficulty && ($code['difficulty'] ?? '') != $difficulty) {
             $match = false;
         }
         
         if ($search) {
-            $searchLower = strtolower($search);
+            $searchLower = strtolower(trim($search));
             $titleMatch = strpos(strtolower($code['title'] ?? ''), $searchLower) !== false;
             $descMatch = strpos(strtolower($code['description'] ?? ''), $searchLower) !== false;
             $tagsMatch = false;
             foreach ($code['tags'] ?? [] as $tag) {
-                if (strpos(strtolower($tag), $searchLower) !== false) {
+                if (strpos(strtolower((string)$tag), $searchLower) !== false) {
                     $tagsMatch = true;
                     break;
                 }
@@ -758,6 +927,13 @@ function getZ2MPartNumber($code) {
     
     // Default return null if no match
     return null;
+}
+
+/** Returns Z2M part numbers as array (handles comma-separated stored value). */
+function getZ2MPartNumbers($code) {
+    $part = getZ2MPartNumber($code);
+    if ($part === null || $part === '') return [];
+    return array_values(array_filter(array_map('trim', explode(',', (string) $part))));
 }
 
 // Placeholder for missing circuit diagrams (dynamic with project title)
